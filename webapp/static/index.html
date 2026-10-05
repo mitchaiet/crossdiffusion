@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CrossDiffusion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/chat.css">
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 30 30" fill="currentColor"><path d="M0 0h8v8H0zm11 0h8v8h-8zm11 0h8v8h-8zM0 11h8v8H0zm22 0h8v8h-8zM0 22h8v8H0zm11 0h8v8h-8zm11 0h8v8h-8z"/></svg></div>
+    <div><h1>CrossDiffusion</h1><p>Crossword solver</p></div>
+  </div>
+  <div class="config" id="config" aria-label="Connection status"><span class="config-item">Connecting…</span></div>
+</header>
+
+<main class="app-shell">
+  <aside class="chat-panel" aria-label="Puzzle chat">
+    <div class="chat-head"><div class="chat-head-main"><strong>Puzzle assistant</strong><small id="chatStatus">Waiting for a puzzle</small></div><button type="button" class="chat-new" id="chatNew" aria-label="New puzzle" title="New puzzle">+</button></div>
+    <div class="chat-session-row"><label for="chatSessionPicker">Your puzzles</label><select id="chatSessionPicker" aria-label="Saved conversations"></select></div>
+    <div class="chat-history" id="chatHistory" role="log" aria-live="polite" aria-relevant="additions"></div>
+    <div class="chat-actions" id="chatActions" aria-label="Suggested actions"></div>
+    <form class="chat-form" id="chatForm"><textarea id="chatInput" rows="2" aria-label="Message the assistant" placeholder="Ask a question or type “solve”…"></textarea><button type="submit" id="chatSend" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></form>
+    <div class="chat-save" id="chatSaveStatus">Loading saved conversations…</div>
+  </aside>
+  <div class="workspace">
+  <nav class="stepbar" id="stepbar" aria-label="Puzzle views"><span class="on" data-s="1"><b>01</b>Upload</span><span data-s="2"><b>02</b>Puzzle</span><span data-s="3"><b>03</b>Draft</span><span data-s="4"><b>04</b>Review</span></nav>
+
+  <section class="card page active" id="s1">
+    <div class="section-heading"><h2>Load a puzzle</h2><p>Upload an image or PDF with the grid and clues.</p></div>
+    <div class="upload">
+      <div>
+        <label class="drop" id="drop">
+          <span class="hint"><span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="4" width="24" height="24" rx="3"/><path d="M12 4v24M20 4v24M4 12h24M4 20h24"/><path d="M12 12h8v8h-8z" fill="currentColor"/></svg></span><b>Drop an image or PDF</b><span>Include the grid and clues.</span><span class="upload-link">Choose file</span></span>
+          <input type="file" id="file" accept="image/*,application/pdf,.pdf" aria-label="Choose a crossword image or PDF">
+        </label>
+        <p class="upload-status" id="uploadStatus" role="status"></p>
+        <div id="pdfPages" class="pdf-pages hidden">
+          <h3 id="pdfFileName"></h3>
+          <p>Select the pages with this puzzle’s grid and clues. Leave answer-key pages unselected.</p>
+          <div id="pdfPageChoices" class="pdf-page-choices" role="group" aria-label="PDF pages to read"></div>
+        </div>
+        <div class="actions">
+          <button id="read" disabled>Read the puzzle</button>
+          <label class="toggle"><input type="checkbox" id="careful"> Careful reading</label>
+          <span class="status" id="readStatus"></span>
+        </div>
+      </div>
+      <div class="hidden" id="samplePanel">
+        <div class="sample-heading"><h3>Samples</h3><span class="sample-count" id="sampleCount"></span></div><p class="sample-hint">Includes answer keys for scoring.</p>
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card page" id="s2">
+    <button class="back" data-go="1">← Change file</button>
+    <div class="section-heading"><h2>Grid and clues</h2><p>Edit a clue or square to correct the extraction.</p></div>
+    <div class="read-progress"><span class="status" id="readStatus2"></span></div>
+    <details class="activity"><summary>Reading details</summary><div class="log" id="readLog"></div></details>
+    <div class="twin">
+      <div class="original"><img id="origImg" alt="original"><div class="cap">Source</div></div>
+      <div>
+        <div class="paper">
+          <h3 id="pTitle" contenteditable="true" spellcheck="false">Puzzle</h3>
+          <div class="paperbody">
+            <div><div class="grid-scroll" tabindex="0" role="region" aria-label="Editable crossword grid. Swipe horizontally to see all columns."><div class="pgrid" id="pGrid"></div></div><div class="cap">Tap a square to toggle black or white. Scroll sideways for more columns.</div></div>
+            <div class="cluecols" tabindex="0" role="region" aria-label="Across and Down clues. Scroll for more clues.">
+              <div><h4>Across</h4><div id="pAcross"></div></div>
+              <div><h4>Down</h4><div id="pDown"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="checks" id="checks"></div>
+        <div class="hintline" id="readMeta"></div>
+        <div class="actions">
+          <button id="solve" disabled>Fill first draft <span aria-hidden="true">→</span></button>
+          <details class="solver-settings"><summary>Solver settings</summary><div class="settings-fields"><label class="toggle">Steps <select id="steps"><option>8</option><option selected>12</option><option>16</option><option>24</option></select></label>
+          <label class="toggle">Mode <select id="batchMode"><option value="single" selected>single pass</option><option value="best_of_4">best of 4 (experimental, slower)</option></select></label>
+          <label class="toggle">Replay speed <select id="pace"><option value="250">fast</option><option value="550" selected>normal</option><option value="1000">slow</option></select></label></div></details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card page" id="s3">
+    <button class="back" data-go="2">← Edit puzzle</button>
+    <div class="section-heading"><h2>First draft</h2><p>CrossDiffusion’s answers, scored when an answer key is available.</p></div>
+    <div class="stage">
+      <div><div class="gridwrap" tabindex="0" role="region" aria-label="Crossword grid. Swipe horizontally to see all columns."><div class="grid" id="grid"></div></div><div class="grid-legend hidden" id="draftLegend"><span><i class="legend-correct"></i>Matches answer key</span><span><i class="legend-incorrect"></i>Differs from key</span></div></div>
+      <div class="side">
+        <div class="state" id="state">idle</div>
+        <div class="meters">
+          <div class="m"><div class="l">Progress</div><div class="v mono" id="mStep">–</div></div>
+          <div class="m"><div class="l">Squares filled</div><div class="v mono" id="mFill">–</div></div>
+          <div class="m"><div class="l">Solve time</div><div class="v mono" id="mGpu">–</div></div>
+          <div class="m"><div class="l" id="mScoreL">Confidence</div><div class="v mono" id="mScore">–</div></div>
+        </div>
+        <div class="bar"><i id="bar"></i></div>
+        <details class="activity"><summary>Solver activity</summary><div class="log" id="log"></div></details>
+        <div class="actions" style="margin-top:0">
+          <button class="ghost" id="replay" disabled>Replay</button>
+          <button class="ghost" id="again" disabled>Run again</button>
+          <button class="ghost" id="repair" disabled>Recheck with LLM</button>
+        </div>
+      </div>
+    </div>
+    <div class="answers hidden" id="answers">
+      <h4><span>Answers</span><span class="mono" id="ansSummary"></span></h4>
+      <div class="anscols" tabindex="0" role="region" aria-label="Draft answers. Scroll for more answers."><div id="ansAcross"></div><div id="ansDown"></div></div>
+    </div>
+  </section>
+
+  <section class="card page" id="s4">
+    <button class="back" data-go="3">← First draft</button>
+    <div class="section-heading"><h2>LLM review</h2><p>A revision based on clues and crossings. Compare it with the first draft.</p></div>
+    <div id="repairPanel">
+      <div class="review-tabs" role="tablist" aria-label="LLM review views">
+        <button id="reviewThinkingTab" type="button" role="tab" aria-controls="reviewThinking" aria-selected="true">Thinking</button>
+        <button id="reviewResultsTab" type="button" role="tab" aria-controls="reviewResults" aria-selected="false" tabindex="-1" disabled>Results</button>
+      </div>
+      <section id="reviewThinking" role="tabpanel" aria-labelledby="reviewThinkingTab">
+        <div class="review-progress" role="status"><span class="spin hidden" id="reviewSpinner"></span><strong id="reviewProgress">Ready to review</strong><span class="mono" id="reviewElapsed"></span></div>
+        <p class="hintline">Activity from the clue checks and crossing solver.</p>
+        <div class="stage" style="margin-top:16px">
+          <div><div class="gridwrap" tabindex="0" role="region" aria-label="LLM review working grid"><div class="grid" id="reviewLiveGrid"></div></div><p class="cap">Working grid. Letters can change until review finishes.</p></div>
+          <div class="log review-log" id="repairLog" role="log" aria-label="Review activity" aria-live="polite" aria-relevant="additions"></div>
+        </div>
+      </section>
+      <section id="reviewResults" class="answers hidden" role="tabpanel" aria-labelledby="reviewResultsTab">
+        <h4><span>Revised grid</span><span class="mono" id="repairScore"></span></h4>
+        <p class="hintline">Blue outlines mark changed squares.</p>
+        <div class="stage" style="margin-top:16px">
+          <div class="gridwrap" tabindex="0" role="region" aria-label="LLM revised crossword grid"><div class="grid" id="repairGrid"></div></div>
+          <div class="side"><div class="state" id="repairState"></div><button type="button" class="ghost" data-go="3">Compare first draft</button></div>
+        </div>
+        <h4 style="margin-top:24px">Changed answers</h4>
+        <div class="anscols" id="repairChanges" tabindex="0" role="region" aria-label="Changed answers. Scroll for more answers."></div>
+      </section>
+    </div>
+  </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let imageBlob = null, imageURL = null, solution = null, selectedDemoPuzzle = null, lastResult = null, timer = null, llmAvailable = false;
+let P = { title: 'Puzzle', grid: [], clues: { across: {}, down: {} } };
+
+/* ---------- shell ---------- */
+let maxStep = 1;
+function setStep(n) {
+  maxStep = Math.max(maxStep, n);
+  document.querySelectorAll('#stepbar span[data-s]').forEach(s => {
+    const k = +s.dataset.s;
+    s.className = k === n ? 'on' : (k <= maxStep ? 'done' : '');
+    s.tabIndex = k <= maxStep ? 0 : -1;
+    s.setAttribute('aria-disabled', String(k > maxStep));
+    if (k === n) s.setAttribute('aria-current', 'step');
+    else s.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('.page').forEach(pg => pg.classList.toggle('active', pg.id === 's' + n));
+  if (typeof guideViewChanged === 'function') guideViewChanged(n);
+  if (n > 1 && window.matchMedia('(max-width:900px)').matches) {
+    document.querySelector('.workspace').scrollIntoView({behavior:'smooth', block:'start'});
+  } else window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+document.querySelectorAll('#stepbar span[data-s]').forEach(s => {
+  s.setAttribute('role', 'button');
+  s.tabIndex = +s.dataset.s === 1 ? 0 : -1;
+  s.onclick = () => { const k = +s.dataset.s; if (k <= maxStep) setStep(k); };
+  s.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); s.click(); } };
+});
+document.querySelectorAll('.back').forEach(b => b.onclick = () => setStep(+b.dataset.go));
+async function loadConfig() {
+  const c = await (await fetch('/api/config')).json();
+  llmAvailable = c.has_key;
+  $('repair').disabled = !llmAvailable || !lastResult;
+  $('config').innerHTML =
+    `<span class="config-item"><span class="dot ${c.diffusion_ok ? 'ok' : ''}"></span>Solver ${c.diffusion_ok ? 'connected' : 'offline'}</span>` +
+    `<span class="config-item"><span class="dot ${c.has_key ? 'ok' : ''}"></span>Assistant ${c.has_key ? 'ready' : 'offline'}</span>`;
+  if (typeof guideConfig === 'function') guideConfig(c);
+}
+async function loadDemos() {
+  const demos = await (await fetch('/api/demos')).json();
+  $('sampleCount').textContent = demos.length;
+  $('samplePanel').classList.toggle('hidden', demos.length === 0);
+  document.querySelector('.upload').classList.toggle('no-samples', demos.length === 0);
+  for (const d of demos) {
+    const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'chip';
+    chip.dataset.sampleId = d.name;
+    chip.setAttribute('aria-pressed', 'false');
+    chip.innerHTML = `<img src="${d.image}" alt=""><span>${d.puzzle?.title || d.name}<small>${d.puzzle ? `${d.puzzle.grid[0].length}×${d.puzzle.grid.length} · Answer key included` : ''}</small></span>`;
+    chip.onclick = async () => {
+      document.querySelectorAll('.chip').forEach(x => { x.classList.remove('sel'); x.setAttribute('aria-pressed', 'false'); }); chip.classList.add('sel'); chip.setAttribute('aria-pressed', 'true');
+      imageBlob = await (await fetch(d.image)).blob(); solution = d.puzzle?.solution || null; selectedDemoPuzzle = d.puzzle || null; imageURL = d.image;
+      uploadGeneration++; sourceDocument = null; renderDocumentPages(); $('uploadStatus').textContent = '';
+      showPreview(d.image); $('read').disabled = false; $('readStatus').textContent = '';
+      if (typeof guidePhotoReady === 'function') guidePhotoReady(d.puzzle?.title || d.name);
+    };
+    $('chips').appendChild(chip);
+  }
+  if (typeof guideDemosLoaded === 'function') guideDemosLoaded(demos.length);
+}
+/* ---------- step 1 → 2: read (streamed) ---------- */
+let revealedRows = Infinity, readT0 = 0;
+function rlog(msg, cls) { const el = $('readLog'), d = document.createElement('div'); if (cls) d.className = cls; d.textContent = `${((Date.now() - readT0) / 1000).toFixed(1).padStart(5)}s  ${msg}`; el.appendChild(d); el.scrollTop = el.scrollHeight; }
+$('read').onclick = async () => {
+  $('read').disabled = true; $('solve').disabled = true; maxStep = 1;
+  lastResult = null; $('repairPanel').classList.add('hidden');
+  readT0 = Date.now(); const careful = $('careful').checked;
+  P = { title: 'reading…', grid: [], clues: { across: {}, down: {} } }; revealedRows = 0;
+  $('origImg').src = imageURL; $('readLog').innerHTML = ''; $('checks').innerHTML = ''; $('readMeta').textContent = '';
+  $('pTitle').textContent = 'reading the image…'; $('pGrid').innerHTML = ''; $('pAcross').innerHTML = ''; $('pDown').innerHTML = '';
+  setStep(2);
+  if (typeof guideBusy === 'function') guideBusy('read');
+  $('readStatus').innerHTML = `<span class="spin"></span><span id="readText"></span>`;
+  const label = careful ? 'reading carefully' : 'reading';
+  $('readStatus2').innerHTML = `<span class="spin"></span><span id="readText2"></span>`;
+  const tick = setInterval(() => { const t = $('readText'), t2 = $('readText2'); const msg = `${label}… ${((Date.now() - readT0) / 1000).toFixed(0)}s`; if (t) t.textContent = msg; if (t2) t2.textContent = msg; }, 250);
+  rlog(selectedDemoPuzzle ? 'loading this bundled sample' :
+    `uploading ${(imageBlob.size / 1024).toFixed(0)} KB ${sourceDocument ? 'PDF · pages ' + sourceDocument.selected.join(', ') : 'image'} · mode: ${careful ? 'careful reader' : 'fast reader with fallbacks'}`, 'a');
+  const fd = uploadForm();
+  let ex = null, clueCount = 0;
+  if (selectedDemoPuzzle) {
+    ex = { ...selectedDemoPuzzle, layout_source:'bundled sample', model:'bundled sample', elapsed_s:0, problems:[] };
+    clueCount = Object.values(ex.clues || {}).reduce((sum, dir) => sum + Object.keys(dir).length, 0);
+    rlog('loaded this demo’s grid and clues from its bundled puzzle data', 'c');
+  } else try {
+    const r = await fetch('/api/extract/stream?' + extractionQuery(careful), { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await responseError(r));
+    const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+    while (true) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true }); const parts = buf.split('\n\n'); buf = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith('data: ')) continue; const ev = JSON.parse(part.slice(6));
+        if (ev.type === 'image') rlog(`image received: ${ev.width}×${ev.height} px, ${ev.kb} KB${ev.format ? ', ' + ev.format : ''}`);
+        else if (ev.type === 'stage') { rlog(ev.text, ev.level === 'warn' ? 'r' : ''); if (typeof guideProgress === 'function') guideProgress(ev.text); }
+        else if (ev.type === 'thinking') rlog(`  model is reasoning about the image… (${ev.chunks} chunks so far)`);
+        else if (ev.type === 'layout') {
+          if (sourceDocument && ev.page) { const page = sourceDocument.pages.find(p => p.number === sourceDocument.selected[ev.page - 1]); if (page) $('origImg').src = page.preview; }
+          P.grid = ev.rows.map(r => [...r].map(ch => ch === '#' ? '#' : '.').join('')); revealedRows = ev.source === 'image processing' ? 0 : ev.rows.length;
+          rlog(`layout from ${ev.source}: ${ev.width}×${ev.height} squares, ${ev.blacks} black${ev.cell_px ? `, cell ≈ ${ev.cell_px} px` : ''}${ev.confidence != null ? `, ${(ev.confidence * 100).toFixed(0)}% of squares decisive` : ''}`, 'c');
+          renderPaper();
+        }
+        else if (ev.type === 'row') { revealedRows = ev.index + 1; rlog(`  row ${String(ev.index + 1).padStart(2)}: ${ev.row}   ${ev.blacks} black square${ev.blacks === 1 ? '' : 's'}`); renderPaper(); await new Promise(res => setTimeout(res, 15)); }
+        else if (ev.type === 'clues_reset') { P.clues = {across:{}, down:{}}; clueCount = 0; renderPaper(); }
+        else if (ev.type === 'clue') { clueCount = ev.count; P.clues[ev.dir][ev.n] = ev.text; rlog(`  clue ${ev.n}${ev.dir === 'across' ? 'A' : 'D'}: ${ev.text}`); renderPaper(ev.dir, ev.n); }
+        else if (ev.type === 'check') rlog(ev.ok ? `cross-check (${ev.source}): ${ev.entries} entries, every clue number matches the layout` : `cross-check (${ev.source}): ${ev.problems.join('; ')}`, ev.ok ? 'c' : 'r');
+        else if (ev.type === 'error') throw new Error(ev.error);
+        else if (ev.type === 'result') ex = ev;
+      }
+    }
+  } catch (e) { clearInterval(tick); $('readStatus2').textContent = ''; rlog(e.message, 'r'); $('readStatus').textContent = e.message; $('read').disabled = false; if (typeof guideError === 'function') guideError('read'); return; }
+  clearInterval(tick); $('read').disabled = false; $('readStatus2').textContent = '';
+  if (!ex || !ex.grid?.length) { $('readStatus').textContent = 'could not find a grid: ' + ((ex && ex.problems) || []).join('; '); rlog('no usable grid', 'r'); if (typeof guideError === 'function') guideError('read'); return; }
+  $('readStatus').textContent = `read in ${((Date.now() - readT0) / 1000).toFixed(0)}s`;
+  P = { title: ex.title || 'Puzzle', grid: ex.grid.map(r => [...r].map(ch => ch === '#' ? '#' : '.').join('')), clues: { across: { ...(ex.clues?.across || {}) }, down: { ...(ex.clues?.down || {}) } } };
+  revealedRows = Infinity; renderPaper();
+  $('readMeta').textContent = selectedDemoPuzzle ? 'Bundled sample grid and clues' :
+    `layout from ${ex.layout_source || 'the model'} · clues read by ${(ex.model || '').split('/').pop()} · ${ex.elapsed_s}s` +
+    (ex.model === 'Tesseract OCR' ? ' · proofread clue text' : '') +
+    (ex.problems?.length ? ` · ${ex.problems.join('; ')}` : '');
+  const { slots } = numbering(P.grid); const missing = slots.filter(s => !String(P.clues[s.dir][s.n] || '').trim()).length;
+  rlog(`reconstruction ready: ${slots.length} entries, ${clueCount} clues read, ${missing} missing${missing ? ' (marked in red, click to type)' : ''}`, missing ? 'r' : 'c');
+  $('solve').disabled = false;
+  if (typeof guideReadDone === 'function') guideReadDone(slots.length, missing, ex.problems || []);
+};
+
+/* ---------- numbering (mirrors grid.py) ---------- */
+function numbering(rows) {
+  const H = rows.length, W = rows[0].length, blk = (r, c) => r < 0 || c < 0 || r >= H || c >= W || rows[r][c] === '#';
+  const nums = {}, slots = []; let n = 0;
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    if (blk(r, c)) continue;
+    const sa = blk(r, c - 1) && !blk(r, c + 1), sd = blk(r - 1, c) && !blk(r + 1, c);
+    if (!sa && !sd) continue; n++; nums[`${r},${c}`] = n;
+    if (sa) { const cells = []; for (let cc = c; !blk(r, cc); cc++) cells.push([r, cc]); slots.push({ id: `${n}A`, n, dir: 'across', cells }); }
+    if (sd) { const cells = []; for (let rr = r; !blk(rr, c); rr++) cells.push([rr, c]); slots.push({ id: `${n}D`, n, dir: 'down', cells }); }
+  }
+  return { nums, slots };
+}
+function wordIn(rows, slot) { const w = slot.cells.map(([r, c]) => rows[r][c]).join(''); return w.includes('.') ? null : w; }
+
+/* ---------- step 2: paper reconstruction ---------- */
+function renderPaper(freshDir, freshN) {
+  $('pTitle').textContent = P.title;
+  if (!P.grid.length) return;
+  const rows = P.grid, W = rows[0].length, { nums, slots } = numbering(rows);
+  const g = $('pGrid'); g.style.setProperty('--cols', W); g.style.setProperty('--cs', '40px'); g.style.gridTemplateColumns = `repeat(${W}, minmax(0,1fr))`; g.innerHTML = '';
+  rows.forEach((row, r) => [...row].forEach((ch, c) => {
+    const d = document.createElement('div'); d.className = 'pcell' + (ch === '#' ? ' blk' : '') + (r >= revealedRows ? ' pending' : ''); d.title = 'toggle black/white';
+    const n = nums[`${r},${c}`]; if (n && ch !== '#') d.innerHTML = `<span class="n">${n}</span>`;
+    d.onclick = () => { if (revealedRows !== Infinity) return; const a = [...P.grid[r]]; a[c] = a[c] === '#' ? '.' : '#'; P.grid[r] = a.join(''); renderPaper(); if (window.guideSave) window.guideSave(); };
+    g.appendChild(d);
+  }));
+  for (const dir of ['across', 'down']) {
+    const el = $(dir === 'across' ? 'pAcross' : 'pDown'); el.innerHTML = '';
+    const wanted = slots.filter(s => s.dir === dir).map(s => s.n), have = Object.keys(P.clues[dir]).map(Number);
+    for (const n of [...new Set([...wanted, ...have])].sort((a, b) => a - b)) {
+      const row = document.createElement('div'); row.className = 'clue' + (!wanted.includes(n) ? ' extra' : (!String(P.clues[dir][n] || '').trim() ? ' missing' : '')) + (dir === freshDir && String(n) === String(freshN) ? ' fresh' : '');
+      const number = document.createElement('b'); number.textContent = n;
+      const span = document.createElement('span'); span.contentEditable = String(revealedRows === Infinity); span.spellcheck = false;
+      span.textContent = P.clues[dir][n] || 'Missing — click to type this clue';
+      span.setAttribute('aria-label', `${n} ${dir} clue`);
+      row.append(number, span);
+      span.onblur = () => { const v = span.textContent.trim(); if (v) P.clues[dir][n] = v; else delete P.clues[dir][n]; row.classList.toggle('missing', !v); renderChecks(); if (window.guideSave) window.guideSave(); };
+      span.onfocus = () => { if (!String(P.clues[dir][n] || '').trim()) span.textContent = ''; };
+      el.appendChild(row);
+    }
+  }
+  $('pTitle').onblur = () => { P.title = $('pTitle').textContent.trim() || 'Puzzle'; if (window.guideSave) window.guideSave(); };
+  if (revealedRows === Infinity) renderChecks(); else $('checks').innerHTML = '';
+}
+function renderChecks() {
+  const { slots } = numbering(P.grid);
+  const missing = slots.filter(s => !String(P.clues[s.dir][s.n] || '').trim());
+  const extra = ['across', 'down'].flatMap(d => Object.keys(P.clues[d]).filter(n => !slots.some(s => s.dir === d && s.n === +n)).map(n => `${n}${d[0].toUpperCase()}`));
+  const short = slots.filter(s => s.cells.length < 3);
+  const checks = [[`${P.grid[0].length}×${P.grid.length} grid · ${slots.length} entries`, 'ok'],
+    missing.length ? [`${missing.length} clue${missing.length > 1 ? 's' : ''} missing: ${missing.slice(0, 6).map(s => s.id).join(' ')}${missing.length > 6 ? '…' : ''}`, 'warn'] : ['every entry has a clue', 'ok'],
+    extra.length ? [`${extra.length} clue${extra.length > 1 ? 's' : ''} with no entry: ${extra.slice(0, 6).join(' ')}`, 'warn'] : null,
+    short.length ? [`${short.length} two-letter entr${short.length > 1 ? 'ies' : 'y'} (a black square is probably misread)`, 'warn'] : null].filter(Boolean);
+  $('checks').innerHTML = checks.map(([t, c]) => `<span class="check ${c}">${t}</span>`).join('');
+}
+
+/* ---------- step 3: the fill ---------- */
+function renderGrid(el, rows, opts = {}) {
+  const W = rows[0].length;
+  el.style.setProperty('--cols', W); el.style.gridTemplateColumns = `repeat(${W}, minmax(0,1fr))`;
+  if (!el._nums || el._w !== W || el._h !== rows.length) { el._nums = numbering(rows).nums; el._w = W; el._h = rows.length; el.innerHTML = ''; }
+  if (el.childElementCount !== rows.length * W) {
+    el.innerHTML = '';
+    rows.forEach((row, r) => [...row].forEach((_, c) => { const d = document.createElement('div'); const n = el._nums[`${r},${c}`]; if (n) d.innerHTML = `<span class="n">${n}</span>`; el.appendChild(d); }));
+  }
+  rows.forEach((row, r) => [...row].forEach((ch, c) => {
+    const cell = el.children[r * W + c], num = cell.querySelector('.n');
+    cell.className = 'cell'; cell.textContent = ''; if (num) cell.appendChild(num);
+    if (ch === '#') { cell.classList.add('blk'); return; }
+    if (ch === '.') { cell.classList.add('empty'); return; }
+    cell.appendChild(document.createTextNode(ch));
+    if (opts.prev && opts.prev[r][c] !== ch) cell.classList.add('new');
+    if (opts.solution) cell.classList.add(opts.solution[r][c].toUpperCase() === ch ? 'ok' : 'bad');
+    else if (opts.conf && (opts.conf[`${r},${c}`] ?? 1) < 0.5) cell.classList.add('low');
+    if (opts.changedFrom && opts.changedFrom[r][c] !== ch) cell.classList.add('changed');
+  }));
+}
+function log(msg, cls) { const el = $('log'), d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; el.appendChild(d); el.scrollTop = el.scrollHeight; }
+function fillPct(rows) { let t = 0, f = 0; for (const r of rows) for (const ch of r) { if (ch === '#') continue; t++; if (ch !== '.') f++; } return t ? f / t : 0; }
+const pct = x => (x * 100).toFixed(0) + '%';
+function setState(text, cls) { const s = $('state'); s.textContent = text; s.className = 'state ' + (cls || ''); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function animate(ev, p) {
+  const el = $('grid'); renderGrid(el, p.grid); $('log').innerHTML = ''; $('answers').classList.add('hidden');
+  const pace = +$('pace').value; let prev = p.grid;
+  const snaps = ev.snapshots?.length ? ev.snapshots : [ev.grid];
+  setState('denoising…', 'run');
+  for (let i = 0; i < snaps.length; i++) {
+    renderGrid(el, snaps[i], { prev }); prev = snaps[i];
+    const h = ev.history[i] || {}, f = fillPct(snaps[i]);
+    $('mStep').textContent = `${i + 1} / ${snaps.length}`; $('mFill').textContent = pct(f); $('bar').style.width = pct(f);
+    log(`step ${String(i + 1).padStart(2)}  revealed ${String(h.revealed ?? '?').padStart(3)} squares   confidence ≥ ${h.min_conf ?? '?'}`, 'a');
+    await sleep(pace);
+  }
+  const conf = ev.confidence || {};
+  renderGrid(el, ev.grid, { solution: p.solution, conf });
+  $('mFill').textContent = pct(fillPct(ev.grid)); $('bar').style.width = '100%'; $('mGpu').textContent = ev.elapsed_s + 's';
+  if (ev.score) { $('mScoreL').textContent = 'Letters correct'; $('mScore').textContent = `${ev.score.letters_correct}/${ev.score.letters_total}`; setState(`${pct(ev.score.letter_accuracy)} of letters correct`, 'done'); }
+  else { const vals = Object.values(conf); const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0; $('mScoreL').textContent = 'Mean confidence'; $('mScore').textContent = pct(mean); setState('filled', 'done'); }
+  log(`done · ${ev.elapsed_s}s on the GPU · no language-model calls`, 'c');
+  renderAnswers(ev, p);
+  $('repair').disabled = !llmAvailable;
+}
+function renderAnswers(ev, p) {
+  $('draftLegend').classList.toggle('hidden', !p.solution);
+  const { slots } = numbering(p.grid); const truth = p.solution ? p.solution.map(r => r.toUpperCase()) : null;
+  let right = 0;
+  for (const dir of ['across', 'down']) {
+    const el = $(dir === 'across' ? 'ansAcross' : 'ansDown'); el.innerHTML = '';
+    for (const s of slots.filter(s => s.dir === dir)) {
+      const w = wordIn(ev.grid, s) || '—', t = truth ? wordIn(truth, s) : null, ok = t ? w === t : null; if (ok) right++;
+      const clue = (p.clues[dir] || {})[String(s.n)] || '';
+      const row = document.createElement('div'); row.className = 'ans';
+      const number = document.createElement('b'); number.textContent = s.n;
+      const text = document.createElement('span'); text.textContent = clue;
+      const word = document.createElement('span'); word.className = 'w' + (ok === null ? '' : ok ? ' ok' : ' bad'); word.textContent = w;
+      if (ok === false) { const answer = document.createElement('span'); answer.className = 'truth'; answer.textContent = ' ' + t; word.appendChild(answer); }
+      row.append(number, text, word); el.appendChild(row);
+    }
+  }
+  $('ansSummary').textContent = truth ? `${right}/${slots.length} entries right` : `${slots.length} entries`;
+  $('answers').classList.remove('hidden');
+}
+async function runFill() {
+  const p = { title: P.title, grid: P.grid, clues: P.clues, solution, steps: +$('steps').value, mode: $('batchMode').value };
+  maxStep = 2;
+  lastResult = null; $('repairPanel').classList.add('hidden');
+  $('solve').disabled = true; $('replay').disabled = true; $('again').disabled = true; $('repair').disabled = true;
+  setStep(3);
+  if (typeof guideBusy === 'function') guideBusy('fill');
+  renderGrid($('grid'), p.grid); $('log').innerHTML = ''; $('answers').classList.add('hidden');
+  ['mStep', 'mFill', 'mGpu', 'mScore'].forEach(id => $(id).textContent = '–'); $('bar').style.width = '0';
+  setState('sending the puzzle to the GPU…', 'run'); log('canvas: every white square masked', 'a');
+  const t0 = Date.now();
+  let ev;
+  try { ev = await (await fetch('/api/solve/diffusion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })).json(); }
+  catch (e) { ev = { error: String(e) }; }
+  if (ev.error) { setState('server unavailable', 'err'); log('ERROR ' + ev.error, 'r'); $('solve').disabled = false; $('again').disabled = false; if (typeof guideError === 'function') guideError('fill'); return; }
+  log(`model answered in ${((Date.now() - t0) / 1000).toFixed(1)}s (${ev.elapsed_s}s of GPU time) · replaying ${ev.snapshots?.length || 0} denoising steps`, 'a');
+  lastResult = { ev, p }; await animate(ev, p);
+  $('solve').disabled = false; $('replay').disabled = false; $('again').disabled = false;
+  if (typeof guideFillDone === 'function') guideFillDone(ev, p);
+}
+$('solve').onclick = runFill;
+$('again').onclick = runFill;
+$('replay').onclick = async () => { if (!lastResult) return; $('replay').disabled = true; await animate(lastResult.ev, lastResult.p); $('replay').disabled = false; };
+loadConfig(); loadDemos();
+</script>
+<script src="/static/upload.js"></script>
+<script src="/static/review.js"></script>
+<script src="/static/chat.js"></script>
+<script src="/static/session.js"></script>
+</body>
+</html>

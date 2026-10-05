@@ -1,0 +1,3 @@
+# Process-only overview narration
+
+Give CrossDiffusion a crossword photo or PDF. First, it finds the grid and reads the Across and Down clues with local OCR when possible. Then it checks that the clue numbers fit the boxes. You can fix a square or clue before solving. The Gemma based filler predicts masked letters across the whole grid, revealing confident cells over several passes. That gives you a first draft, with every answer visible for review. If you enable the optional LLM step, it compares answers with clues and crossing letters, and revises weak entries. The app saves the draft, the review activity, and the final grid together. You need your own puzzle and, for the LLM features, your own API key. This release ships no puzzle examples.

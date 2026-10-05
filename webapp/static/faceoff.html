@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Crossword Face-off</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme:dark;
+    --bg:#111113; --panel:#19191c; --surface:#202024; --line:#35353b;
+    --ink:#ededf0; --muted:#a1a1aa; --accent:#91baff; --success:#78c99a; --error:#ef9393;
+    --paper:#fff; --paper-ink:#18181b; --agent:#d4d4d8; --diff:#71717a;
+    --small:12px; --body:14px; --heading:16px; --title:24px;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:var(--body)/1.5 Inter, sans-serif; }
+  h1, h2, h3, h4, p { margin:0; }
+  .mono, .step, .clue b, .n { font-family:"JetBrains Mono", monospace; font-variant-numeric:tabular-nums; }
+  header, main { width:100%; max-width:1440px; margin:auto; padding:32px; }
+  header { padding-bottom:0; }
+  .brand h1 { font-size:var(--title); font-weight:600; letter-spacing:-.5px; }
+  .brand p { color:var(--muted); margin-top:8px; }
+  .config { display:flex; gap:8px 24px; flex-wrap:wrap; margin-top:16px; color:var(--muted); font-size:var(--small); }
+  .config-item { display:inline-flex; align-items:center; gap:8px; min-width:0; flex-wrap:wrap; overflow-wrap:anywhere; }
+  .config-item b { font-weight:500; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--error); flex-shrink:0; }
+  .dot.ok { background:var(--success); }
+  main { display:grid; gap:24px; padding-bottom:48px; }
+  .stepbar { display:flex; gap:8px 24px; flex-wrap:wrap; color:var(--muted); font-size:var(--small); }
+  .stepbar .on { color:var(--ink); text-decoration:underline; text-underline-offset:8px; }
+  .stepbar .done { color:var(--success); }
+  .card { min-width:0; padding:24px; background:var(--panel); border:1px solid var(--line); border-radius:8px; scroll-margin-top:24px; }
+  .card h2 { display:flex; align-items:center; gap:16px; margin-bottom:24px; font-size:var(--heading); font-weight:600; }
+  .step { color:var(--muted); font-size:var(--body); }
+  .upload { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:24px; align-items:start; }
+  .upload > *, .twin > *, .paperbody > *, .arena > *, .head > * { min-width:0; }
+  .drop { position:relative; display:grid; place-items:center; min-height:192px; padding:24px; border:1px dashed var(--line); border-radius:8px; text-align:center; color:var(--muted); cursor:pointer; }
+  .drop:hover, .drop.over, .drop:focus-within { border-color:var(--accent); }
+  .drop input { position:absolute; width:1px; height:1px; opacity:0; }
+  .drop img { max-height:360px; max-width:100%; object-fit:contain; }
+  .hint b { display:block; color:var(--ink); font-size:var(--heading); font-weight:500; margin-bottom:8px; }
+  .chips { display:grid; gap:8px; }
+  .chip { display:flex; align-items:center; gap:16px; padding:8px; border:1px solid transparent; border-radius:8px; color:var(--muted); cursor:pointer; overflow-wrap:anywhere; }
+  .chip:hover { background:var(--surface); color:var(--ink); }
+  .chip.sel { border-color:var(--accent); color:var(--ink); }
+  .chip img { width:48px; height:48px; object-fit:contain; background:var(--paper); flex-shrink:0; }
+  .chip small { display:block; font-size:var(--small); color:var(--muted); }
+  .actions { display:flex; align-items:center; gap:16px; margin-top:24px; flex-wrap:wrap; }
+  button { padding:8px 16px; min-height:40px; border:1px solid transparent; border-radius:8px; background:var(--accent); color:var(--bg); font:600 var(--body)/1.5 Inter, sans-serif; cursor:pointer; }
+  button:hover { filter:brightness(1.08); }
+  button:disabled { opacity:.4; cursor:default; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+  .status { display:flex; align-items:center; gap:8px; color:var(--muted); overflow-wrap:anywhere; }
+  .spin { width:16px; height:16px; flex-shrink:0; border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .toggle { display:flex; align-items:center; gap:8px; color:var(--muted); }
+  .toggle input { accent-color:var(--accent); }
+  /* Reconstruction: a small source image beside the editable paper. */
+  .twin { display:grid; grid-template-columns:144px minmax(0,1fr); gap:24px; align-items:start; }
+  .original { text-align:center; }
+  .original img { display:block; max-width:100%; max-height:192px; margin:auto; object-fit:contain; }
+  .cap { margin-top:8px; font-size:var(--small); color:var(--muted); }
+  .paper { color-scheme:light; padding:24px; border-radius:8px; background:var(--paper); color:var(--paper-ink); }
+  .paper h3 { margin-bottom:24px; font-size:var(--title); font-weight:600; overflow-wrap:anywhere; }
+  .paper [contenteditable]:focus { outline:2px solid var(--accent); outline-offset:2px; }
+  .paper .cap { color:#606068; }
+  .paperbody { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,3fr); gap:24px; align-items:start; }
+  .pgrid, .grid { display:grid; container-type:inline-size; width:min(100%, calc(var(--cols) * var(--cs))); }
+  .pgrid { border:2px solid var(--paper-ink); background:var(--paper-ink); }
+  .pcell, .cell { position:relative; display:grid; place-items:center; min-width:0; width:100%; aspect-ratio:1; font:600 clamp(8px, calc(56cqw / var(--cols)), 24px)/1 Inter, sans-serif; }
+  .pcell { background:var(--paper); outline:1px solid var(--paper-ink); outline-offset:-.5px; cursor:pointer; }
+  .pcell.blk { background:var(--paper-ink); }
+  .pcell:hover { box-shadow:inset 0 0 0 2px var(--accent); }
+  .pcell .n, .cell .n { position:absolute; top:1px; left:2px; font-size:clamp(5px, calc(28cqw / var(--cols)), 12px); line-height:1; font-weight:400; }
+  .cluecols { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+  .cluecols h4 { margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid var(--line); font-size:var(--body); font-weight:600; }
+  .clue { display:flex; gap:8px; padding:4px 0; font-size:var(--small); line-height:1.5; }
+  .clue b { min-width:24px; text-align:right; font-weight:600; }
+  .clue span { flex:1; min-width:0; overflow-wrap:anywhere; }
+  .clue.missing span { color:#a12b2b; font-style:italic; }
+  .clue.extra { color:#606068; text-decoration:line-through; }
+  .checks { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:16px; font-size:var(--small); color:var(--muted); }
+  .check.ok { color:var(--muted); } .check.warn { color:var(--error); }
+  .hintline { color:var(--muted); font-size:var(--small); margin-top:8px; overflow-wrap:anywhere; }
+  /* Identical solver panels; only the small identity swatches differ. */
+  .arena { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+  .solver { min-width:0; padding:16px; border:1px solid var(--line); border-radius:8px; }
+  .solver.agent { --swatch:var(--agent); } .solver.diff { --swatch:var(--diff); }
+  .head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 16px; margin-bottom:16px; }
+  .head > div { display:contents; }
+  .solver h3 { display:flex; align-items:center; gap:8px; font-size:var(--heading); font-weight:600; }
+  .swatch { display:inline-block; width:8px; height:8px; background:var(--swatch); flex-shrink:0; }
+  .tag { grid-column:1 / -1; grid-row:2; min-height:40px; color:var(--muted); font-size:var(--small); overflow-wrap:anywhere; }
+  .state { max-width:160px; align-self:start; text-align:right; color:var(--muted); font-size:var(--small); overflow-wrap:anywhere; }
+  .state.run { color:var(--ink); } .state.done { color:var(--success); } .state.err { color:var(--error); }
+  .gridwrap { display:grid; place-items:center; min-width:0; padding:16px; background:var(--bg); border-radius:8px; }
+  .grid { gap:1px; }
+  .cell { background:var(--paper); color:var(--paper-ink); }
+  .cell .n { color:#606068; }
+  .cell.blk { background:var(--bg); } .cell.empty { background:var(--line); }
+  .cell.empty .n { color:var(--muted); }
+  .cell.new { animation:reveal .45s ease-out; }
+  @keyframes reveal { from { background:var(--accent); } to { background:var(--paper); } }
+  .cell.ok { background:var(--success); } .cell.bad { background:var(--error); }
+  .cell.diff::after { content:""; position:absolute; inset:1px; border:2px solid var(--paper-ink); }
+  .stats { display:flex; align-content:start; flex-wrap:wrap; gap:8px; min-height:64px; padding:16px 0; font-size:var(--small); color:var(--muted); }
+  .stats > span { white-space:nowrap; }
+  .stats > span + span::before { content:"·"; margin-right:8px; }
+  .stats .mono { color:var(--ink); }
+  .bar { height:4px; background:var(--line); overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; background:var(--muted); transition:width .3s; }
+  .log-label { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-top:16px; color:var(--muted); font-size:var(--small); }
+  .log { height:144px; overflow:auto; margin-top:8px; padding:8px; border:1px solid var(--line); border-radius:8px; font:var(--small)/1.5 "JetBrains Mono", monospace; color:var(--muted); }
+  .log div { white-space:pre-wrap; overflow-wrap:anywhere; }
+  .log .c { color:var(--success); } .log .r { color:var(--error); }
+  .score { display:grid; gap:16px; }
+  .score-row { display:grid; grid-template-columns:160px minmax(0,1fr) auto; gap:16px; align-items:center; }
+  .who { display:flex; align-items:center; gap:8px; font-weight:500; }
+  .who i { width:8px; height:8px; flex-shrink:0; }
+  .track { height:8px; background:var(--line); overflow:hidden; }
+  .track i { display:block; height:100%; background:var(--muted); transition:width .6s; }
+  .num { font-size:var(--small); }
+  .summary { margin-top:24px; color:var(--muted); }
+  .summary b { color:var(--ink); font-weight:500; }
+  #clueTableWrap { max-width:100%; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; margin-top:24px; font-size:var(--small); }
+  th, td { padding:8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; overflow-wrap:anywhere; }
+  th { color:var(--muted); font-weight:500; }
+  td.ans { font-family:"JetBrains Mono", monospace; } td.ok { color:var(--success); } td.bad { color:var(--error); }
+  .hidden { display:none !important; }
+  @media (max-width:1200px) { .paperbody { grid-template-columns:1fr; } }
+  @media (max-width:900px) {
+    .upload, .arena { grid-template-columns:1fr; }
+    .twin { grid-template-columns:112px minmax(0,1fr); }
+  }
+  @media (max-width:600px) {
+    header, main { padding:24px 16px; } header { padding-bottom:0; }
+    .card, .paper { padding:16px; }
+    .twin { grid-template-columns:minmax(0,1fr); gap:16px; }
+    .original { display:flex; align-items:center; gap:16px; text-align:left; }
+    .original img { max-width:80px; max-height:96px; margin:0; } .original .cap { margin:0; }
+    .cluecols { gap:16px; }
+    .head { grid-template-columns:minmax(0,1fr); } .state { grid-row:3; text-align:left; max-width:none; }
+    .tag { min-height:40px; }
+    .state { min-height:36px; }
+    .stats { min-height:80px; }
+    .log-label { min-height:36px; }
+    .gridwrap { padding:8px; }
+    .score-row { grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+    .score-row .track { grid-column:1 / -1; grid-row:2; }
+  }
+  @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+
+  /* Mobile usability: preserve the dark theme; scroll grids, not the page. */
+  header, main { padding-left:max(16px, env(safe-area-inset-left)); padding-right:max(16px, env(safe-area-inset-right)); }
+  header { padding-top:max(24px, env(safe-area-inset-top)); }
+  main { padding-bottom:max(48px, env(safe-area-inset-bottom)); }
+  button, button.back, select, .toggle { min-height:44px; }
+  select { appearance:none; -webkit-appearance:none; height:44px; min-width:64px; padding-right:24px; background-image:linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%); background-position:calc(100% - 13px) 19px, calc(100% - 8px) 19px; background-size:5px 5px; background-repeat:no-repeat; }
+  button, select, input, [contenteditable] { font-size:16px; }
+  button, select { max-width:100%; white-space:normal; }
+  .config-item { min-width:0; max-width:100%; flex-wrap:wrap; overflow-wrap:anywhere; }
+  .config-item > *, .status > *, .actions > *, .chip > *, .side, .state { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+  .status, .checks, .state, .m, .tag, .summary, .ans { overflow-wrap:anywhere; }
+  .stepbar span[data-s] { min-height:44px; display:inline-flex; align-items:center; }
+  .grid-scroll { max-width:100%; overflow:auto; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+  .gridwrap { max-width:100%; overflow:auto; justify-items:start; overscroll-behavior-x:contain; }
+  .clue [contenteditable] { min-height:44px; }
+  .ans > * { min-width:0; overflow-wrap:anywhere; }
+  @media (min-width:601px) { header, main { padding-left:max(32px, env(safe-area-inset-left)); padding-right:max(32px, env(safe-area-inset-right)); } }
+  @media (max-width:600px) {
+    .upload, .twin, .paperbody, .stage, .arena, .cluecols, .anscols { grid-template-columns:minmax(0,1fr); }
+    .twin, .paperbody, .cluecols { gap:16px; }
+    .original { display:flex; align-items:center; gap:16px; text-align:left; }
+    .original img { max-width:80px; max-height:96px; margin:0; }
+    .original .cap { margin:0; }
+    .card h2 { gap:8px; align-items:baseline; }
+    .actions { gap:12px; }
+    .actions > button { width:100%; }
+    .toggle { flex-wrap:wrap; }
+    .clue { font-size:16px; padding:6px 0; }
+    .pgrid { width:calc(var(--cols) * 44px + 4px); max-width:none; }
+    .pcell { font-size:24px; }
+    .pcell .n { font-size:11px; }
+    .grid { width:calc(var(--cols) * 28px); max-width:none; }
+    .cell { font-size:17px; }
+    .cell .n { font-size:9px; }
+    .gridwrap { padding:8px; }
+    .ans { grid-template-columns:28px minmax(0,1fr); font-size:14px; }
+    .ans .w { grid-column:2; }
+    .stats > span { white-space:normal; overflow-wrap:anywhere; }
+    .paper h3 { font-size:22px; }
+  }
+  @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div><h1>Crossword Face-off</h1><p>Compare the LLM agent and CrossDiffusion on the same puzzle.</p></div>
+  </div>
+  <div class="config" id="pills"><span class="config-item">loading…</span></div>
+</header>
+
+<main>
+  <div class="stepbar" id="stepbar"><span class="on" data-s="1">1 · Photo</span><span data-s="2">2 · Reconstruction</span><span data-s="3">3 · Solve</span><span data-s="4">4 · Scoreboard</span></div>
+
+  <section class="card" id="s1">
+    <h2><span class="step">1</span> Photo of the puzzle</h2>
+    <div class="upload">
+      <div>
+        <label class="drop" id="drop">
+          <span class="hint" id="dropHint"><b>Drop a crossword screenshot or photo</b>any grid with printed clues · or click to choose</span>
+          <input type="file" id="file" accept="image/*">
+        </label>
+        <div class="actions">
+          <button id="read" disabled>Read the puzzle</button>
+          <label class="toggle"><input type="checkbox" id="careful"> Careful reading (slower)</label>
+          <span class="status" id="readStatus"></span>
+        </div>
+      </div>
+      <div>
+        <div class="hintline" style="margin:0 0 8px">Or try a sample</div>
+        <div class="chips" id="chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="s2">
+    <h2><span class="step">2</span> Review the reconstruction</h2>
+    <div class="twin">
+      <div class="original"><img id="origImg" alt="original"><div class="cap">your image</div></div>
+      <div>
+        <div class="paper">
+          <h3 id="pTitle" contenteditable="true" spellcheck="false">Puzzle</h3>
+          <div class="paperbody">
+            <div><div class="grid-scroll" tabindex="0" role="region" aria-label="Editable crossword grid. Swipe horizontally to see all columns."><div class="pgrid" id="pGrid"></div></div><div class="cap">Tap a square to toggle black / white. On phones, swipe the grid sideways to see all columns.</div></div>
+            <div class="cluecols">
+              <div><h4>Across</h4><div class="clues" id="pAcross"></div></div>
+              <div><h4>Down</h4><div class="clues" id="pDown"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="checks" id="checks"></div>
+        <div class="hintline" id="readMeta"></div>
+        <div class="actions">
+          <button id="solve">Solve puzzle</button>
+          <label class="toggle"><input type="checkbox" id="live" checked> animate</label>
+          <span class="status" id="solveStatus"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="s3">
+    <h2><span class="step">3</span> Solver comparison</h2>
+    <div class="arena">
+      <div class="solver agent">
+        <div class="head">
+          <div><h3><span class="swatch" aria-hidden="true"></span>LLM agent</h3><div class="tag" id="agentTag">propose · propagate · commit · judge · search</div></div>
+          <span class="state" id="agentState">idle</span>
+        </div>
+        <div class="gridwrap" tabindex="0" role="region" aria-label="Crossword grid. Swipe horizontally to see all columns."><div class="grid" id="agentGrid"></div></div>
+        <div class="stats">
+          <span>Time <span class="mono" id="agentTime">–</span></span>
+          <span>Filled <span class="mono" id="agentFill">–</span></span>
+          <span>Calls <span class="mono" id="agentCalls">–</span></span>
+          <span>Cost <span class="mono" id="agentCost">–</span></span>
+        </div>
+        <div class="bar"><i id="agentBar"></i></div>
+        <div class="log-label"><span>Event log</span><span>Round <span class="mono" id="agentRound">–</span></span></div>
+        <div class="log" id="agentLog"></div>
+      </div>
+      <div class="solver diff">
+        <div class="head">
+          <div><h3><span class="swatch" aria-hidden="true"></span>CrossDiffusion</h3><div class="tag" id="diffusionTag">CrossDiffusion · local GPU</div></div>
+          <span class="state" id="diffState">idle</span>
+        </div>
+        <div class="gridwrap" tabindex="0" role="region" aria-label="Crossword grid. Swipe horizontally to see all columns."><div class="grid" id="diffGrid"></div></div>
+        <div class="stats">
+          <span>Time <span class="mono" id="diffTime">–</span></span>
+          <span>Filled <span class="mono" id="diffFill">–</span></span>
+          <span>Step <span class="mono" id="diffStep">–</span></span>
+        </div>
+        <div class="bar"><i id="diffBar"></i></div>
+        <div class="log-label"><span>Event log</span><span>GPU <span class="mono" id="diffGpu">–</span> · API cost <span class="mono">$0</span></span></div>
+        <div class="log" id="diffLog"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="s4">
+    <h2><span class="step">4</span> Scoreboard</h2>
+    <div class="score" id="score"></div>
+    <div class="summary" id="summary"></div>
+    <div id="clueTableWrap"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let imageBlob = null, imageURL = null, solution = null, agentFinal = null, diffFinal = null, timers = {};
+let P = { title: 'Puzzle', grid: [], clues: { across: {}, down: {} } };   // the editable reconstruction
+
+/* ---------- shell ---------- */
+function setStep(n) { document.querySelectorAll('#stepbar span').forEach(s => { const k = +s.dataset.s; s.className = k < n ? 'done' : (k === n ? 'on' : ''); }); }
+async function loadConfig() {
+  const c = await (await fetch('/api/config')).json();
+  $('pills').innerHTML =
+    `<span class="config-item">agent <b>${c.agent_model.split('/').pop()}</b></span>` +
+    `<span class="config-item">reader <b>${c.ocr_available ? 'local OCR → ' : ''}GLM-5.3-Flash → ${c.vision_model.split('/').pop()}</b></span>` +
+    `<span class="config-item"><span class="dot ${c.diffusion_ok ? 'ok' : ''}"></span>GPU filler <b>${c.diffusion_ok ? 'online' : 'offline'}</b></span>` +
+    (c.has_key ? '' : `<span class="config-item" style="color:var(--error)">no NEBIUS_API_KEY</span>`);
+  $('agentTag').textContent = `${c.agent_model.split('/').pop()} on Nebius · propose, propagate, commit, judge, search`;
+  $("diffusionTag").textContent = (c.diffusion_model || "Model unavailable") + " · masked-diffusion grid filler · local GPU";
+}
+async function loadDemos() {
+  const demos = await (await fetch('/api/demos')).json();
+  for (const d of demos) {
+    const chip = document.createElement('div'); chip.className = 'chip';
+    chip.innerHTML = `<img src="${d.image}" alt=""><div>${d.puzzle?.title || d.name}<small>${d.puzzle ? `${d.puzzle.grid[0].length}×${d.puzzle.grid.length} · solution known, both sides get scored` : ''}</small></div>`;
+    chip.onclick = async () => {
+      document.querySelectorAll('.chip').forEach(x => x.classList.remove('sel')); chip.classList.add('sel');
+      imageBlob = await (await fetch(d.image)).blob(); solution = d.puzzle?.solution || null; imageURL = d.image;
+      showPreview(d.image); $('read').disabled = false; $('readStatus').textContent = '';
+    };
+    $('chips').appendChild(chip);
+  }
+}
+function showPreview(url) { $('drop').innerHTML = `<img src="${url}" alt="puzzle"><input type="file" id="file" accept="image/*">`; $('file').addEventListener('change', e => pick(e.target.files[0])); }
+const drop = $('drop');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); pick(e.dataTransfer.files[0]); });
+$('file').addEventListener('change', e => pick(e.target.files[0]));
+function pick(f) { if (!f) return; imageBlob = f; solution = null; imageURL = URL.createObjectURL(f); document.querySelectorAll('.chip').forEach(x => x.classList.remove('sel')); showPreview(imageURL); $('read').disabled = false; $('readStatus').textContent = ''; }
+
+/* ---------- step 1 → 2: read ---------- */
+$('read').onclick = async () => {
+  $('read').disabled = true; ['s2', 's3', 's4'].forEach(id => $(id).classList.add('hidden'));
+  const t0 = Date.now(); const careful = $('careful').checked;
+  $('readStatus').innerHTML = `<span class="spin"></span><span id="readText"></span>`;
+  const label = careful ? 'reading carefully' : 'reading';
+  const tick = setInterval(() => { const t = $('readText'); if (t) t.textContent = `${label}… ${((Date.now() - t0) / 1000).toFixed(0)}s`; }, 250);
+  const fd = new FormData(); fd.append('file', imageBlob, 'puzzle.png');
+  let ex;
+  try { ex = await (await fetch('/api/extract?fast=' + (careful ? 'false' : 'true'), { method: 'POST', body: fd })).json(); }
+  catch (e) { clearInterval(tick); $('readStatus').textContent = (String(e).includes('Failed to fetch') ? 'the connection to the server dropped (it may have restarted) — click Read again' : 'read failed: ' + e); $('read').disabled = false; return; }
+  clearInterval(tick); $('read').disabled = false;
+  if (!ex.grid?.length) { $('readStatus').textContent = 'could not find a grid: ' + (ex.problems || []).join('; '); return; }
+  $('readStatus').textContent = `read in ${((Date.now() - t0) / 1000).toFixed(0)}s`;
+  P = { title: ex.title || 'Puzzle', grid: ex.grid.map(r => [...r].map(ch => ch === '#' ? '#' : '.').join('')), clues: { across: { ...(ex.clues?.across || {}) }, down: { ...(ex.clues?.down || {}) } } };
+  $('readMeta').textContent = `layout from ${ex.layout_source || 'the model'} · clues read by ${(ex.model || '').split('/').pop()} · ${ex.elapsed_s}s` +
+    (ex.model === 'Tesseract OCR' ? ' · proofread clue text' : '') +
+    (ex.problems?.length ? ` · ${ex.problems.join('; ')}` : '');
+  $('origImg').src = imageURL; renderPaper(); $('s2').classList.remove('hidden'); setStep(2); $('s2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+/* ---------- numbering (mirrors grid.py) ---------- */
+function numbering(rows) {
+  const H = rows.length, W = rows[0].length, blk = (r, c) => r < 0 || c < 0 || r >= H || c >= W || rows[r][c] === '#';
+  const nums = {}, slots = []; let n = 0;
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+    if (blk(r, c)) continue;
+    const sa = blk(r, c - 1) && !blk(r, c + 1), sd = blk(r - 1, c) && !blk(r + 1, c);
+    if (!sa && !sd) continue; n++; nums[`${r},${c}`] = n;
+    if (sa) { const cells = []; for (let cc = c; !blk(r, cc); cc++) cells.push([r, cc]); slots.push({ id: `${n}A`, n, dir: 'across', cells }); }
+    if (sd) { const cells = []; for (let rr = r; !blk(rr, c); rr++) cells.push([rr, c]); slots.push({ id: `${n}D`, n, dir: 'down', cells }); }
+  }
+  return { nums, slots };
+}
+function wordIn(rows, slot) { const w = slot.cells.map(([r, c]) => rows[r][c]).join(''); return w.includes('.') ? null : w; }
+
+/* ---------- step 2: the paper reconstruction ---------- */
+function renderPaper() {
+  $('pTitle').textContent = P.title;
+  const rows = P.grid, W = rows[0].length, cs = Math.max(22, Math.min(40, Math.floor(440 / W)));
+  const { nums, slots } = numbering(rows);
+  const g = $('pGrid'); g.style.setProperty('--cs', cs + 'px'); g.style.setProperty('--cols', W); g.style.gridTemplateColumns = `repeat(${W}, minmax(0, 1fr))`; g.innerHTML = '';
+  rows.forEach((row, r) => [...row].forEach((ch, c) => {
+    const d = document.createElement('div'); d.className = 'pcell' + (ch === '#' ? ' blk' : ''); d.title = 'toggle black/white';
+    const n = nums[`${r},${c}`]; if (n && ch !== '#') d.innerHTML = `<span class="n">${n}</span>`;
+    d.onclick = () => { const a = [...P.grid[r]]; a[c] = a[c] === '#' ? '.' : '#'; P.grid[r] = a.join(''); renderPaper(); };
+    g.appendChild(d);
+  }));
+  for (const dir of ['across', 'down']) {
+    const el = $(dir === 'across' ? 'pAcross' : 'pDown'); el.innerHTML = '';
+    const wanted = slots.filter(s => s.dir === dir).map(s => s.n);
+    const have = Object.keys(P.clues[dir]).map(Number);
+    const all = [...new Set([...wanted, ...have])].sort((a, b) => a - b);
+    for (const n of all) {
+      const row = document.createElement('div'); row.className = 'clue' + (!wanted.includes(n) ? ' extra' : (P.clues[dir][n] == null ? ' missing' : ''));
+      const text = P.clues[dir][n] ?? 'missing — click to type this clue';
+      row.innerHTML = `<b>${n}</b><span contenteditable="true" spellcheck="false">${text}</span>`;
+      const span = row.querySelector('span');
+      span.onblur = () => { const v = span.textContent.trim(); if (v && !v.startsWith('missing')) P.clues[dir][n] = v; renderChecks(); };
+      span.onfocus = () => { if (P.clues[dir][n] == null) span.textContent = ''; };
+      el.appendChild(row);
+    }
+  }
+  $('pTitle').onblur = () => { P.title = $('pTitle').textContent.trim() || 'Puzzle'; };
+  renderChecks();
+}
+function renderChecks() {
+  const { slots } = numbering(P.grid);
+  const missing = slots.filter(s => P.clues[s.dir][s.n] == null);
+  const extra = ['across', 'down'].flatMap(d => Object.keys(P.clues[d]).filter(n => !slots.some(s => s.dir === d && s.n === +n)).map(n => `${n}${d[0].toUpperCase()}`));
+  const short = slots.filter(s => s.cells.length < 3);
+  const checks = [
+    [`${P.grid[0].length}×${P.grid.length} grid · ${slots.length} entries`, 'ok'],
+    missing.length ? [`${missing.length} clue${missing.length > 1 ? 's' : ''} missing: ${missing.slice(0, 6).map(s => s.id).join(' ')}${missing.length > 6 ? '…' : ''}`, 'warn'] : ['every entry has a clue', 'ok'],
+    extra.length ? [`${extra.length} clue${extra.length > 1 ? 's' : ''} with no entry: ${extra.slice(0, 6).join(' ')}`, 'warn'] : null,
+    short.length ? [`${short.length} two-letter entr${short.length > 1 ? 'ies' : 'y'} (a black square is probably misread)`, 'warn'] : null,
+  ].filter(Boolean);
+  $('checks').innerHTML = checks.map(([t, c]) => `<span class="check ${c}">${t}</span>`).join('');
+}
+
+/* ---------- step 3: solve ---------- */
+function puzzleOut() { return { title: P.title, grid: P.grid, clues: P.clues, solution }; }
+function renderGrid(el, rows, opts = {}) {
+  const W = rows[0].length, cs = Math.max(18, Math.min(38, Math.floor(430 / W)));
+  el.style.setProperty('--cs', cs + 'px'); el.style.setProperty('--cols', W); el.style.gridTemplateColumns = `repeat(${W}, minmax(0, 1fr))`;
+  if (!el._nums || el._w !== W || el._h !== rows.length) { el._nums = numbering(rows).nums; el._w = W; el._h = rows.length; el.innerHTML = ''; }
+  if (el.childElementCount !== rows.length * W) {
+    el.innerHTML = '';
+    rows.forEach((row, r) => [...row].forEach((_, c) => { const d = document.createElement('div'); const n = el._nums[`${r},${c}`]; if (n) d.innerHTML = `<span class="n">${n}</span>`; el.appendChild(d); }));
+  }
+  rows.forEach((row, r) => [...row].forEach((ch, c) => {
+    const cell = el.children[r * W + c], num = cell.querySelector('.n');
+    cell.className = 'cell'; cell.textContent = ''; if (num) cell.appendChild(num);
+    if (ch === '#') { cell.classList.add('blk'); return; }
+    if (ch === '.') { cell.classList.add('empty'); return; }
+    cell.appendChild(document.createTextNode(ch));
+    if (opts.prev && opts.prev[r][c] !== ch) cell.classList.add('new');
+    if (opts.solution) cell.classList.add(opts.solution[r][c].toUpperCase() === ch ? 'ok' : 'bad');
+    if (opts.other && opts.other[r][c] !== '.' && opts.other[r][c] !== ch) cell.classList.add('diff');
+  }));
+}
+function log(el, msg, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; el.appendChild(d); el.scrollTop = el.scrollHeight; }
+function fillPct(rows) { let t = 0, f = 0; for (const r of rows) for (const ch of r) { if (ch === '#') continue; t++; if (ch !== '.') f++; } return t ? f / t : 0; }
+function setState(id, text, cls) { const s = $(id); s.textContent = text; s.className = 'state ' + (cls || ''); }
+function startTimer(key, el) { const t0 = Date.now(); timers[key] = setInterval(() => { el.textContent = ((Date.now() - t0) / 1000).toFixed(1) + 's'; }, 100); return t0; }
+function stopTimer(key) { clearInterval(timers[key]); }
+const pct = x => (x * 100).toFixed(0) + '%';
+const money = x => x == null ? 'n/a' : (x < 0.01 ? '$' + x.toFixed(4) : '$' + x.toFixed(3));
+
+async function runAgent(p) {
+  const el = $('agentGrid'), logEl = $('agentLog'); logEl.innerHTML = ''; let prev = p.grid; renderGrid(el, p.grid);
+  setState('agentState', 'thinking', 'run'); const t0 = startTimer('agent', $('agentTime'));
+  $('agentFill').textContent = '0%'; $('agentRound').textContent = '1'; $('agentCalls').textContent = '0'; $('agentCost').textContent = '–'; $('agentBar').style.width = '0';
+  const r = await fetch('/api/solve/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+  while (true) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }); const parts = buf.split('\n\n'); buf = parts.pop();
+    for (const part of parts) {
+      if (!part.startsWith('data: ')) continue; const ev = JSON.parse(part.slice(6));
+      const s = ((Date.now() - t0) / 1000).toFixed(1);
+      if (ev.grid && ev.type !== 'final' && $('live').checked) { renderGrid(el, ev.grid, { prev }); prev = ev.grid; const f = fillPct(ev.grid); $('agentFill').textContent = pct(f); $('agentBar').style.width = pct(f); }
+      if (ev.round) $('agentRound').textContent = ev.round;
+      if (ev.type === 'propose') { setState('agentState', `round ${ev.round} · asking the model`, 'run'); log(logEl, `${s}s  round ${ev.round}: asked about ${ev.queries} clues → ${ev.new} new candidates`, 'q'); }
+      else if (ev.type === 'commit') log(logEl, `${s}s    commit ${ev.slot} = ${ev.word}  p=${ev.p}`, 'c');
+      else if (ev.type === 'round') { setState('agentState', `round ${ev.round} · propagating`, 'run'); log(logEl, `${s}s  round ${ev.round}: ${ev.commits} commits, ${pct(ev.filled)} filled`); }
+      else if (ev.type === 'backtrack') { setState('agentState', 'searching', 'run'); log(logEl, `${s}s  search: ${ev.nodes} nodes → ${pct(ev.filled)} filled`, 'd'); }
+      else if (ev.type === 'reject') log(logEl, `${s}s    judge rejected ${ev.slot} = ${ev.word}`, 'r');
+      else if (ev.type === 'judge') { setState('agentState', 'judging', 'run'); log(logEl, `${s}s  judge checked ${ev.checked}, rejected ${ev.rejected}`, 'd'); }
+      else if (ev.type === 'force_fill') log(logEl, `${s}s    best guess ${ev.slot} = ${ev.word}`, 'd');
+      else if (ev.type === 'error') { stopTimer('agent'); setState('agentState', 'failed', 'err'); log(logEl, 'ERROR ' + ev.error, 'r'); }
+      else if (ev.type === 'final') {
+        stopTimer('agent'); agentFinal = ev; renderGrid(el, ev.grid, { solution: p.solution });
+        $('agentTime').textContent = ev.elapsed_s + 's'; $('agentFill').textContent = pct(fillPct(ev.grid)); $('agentBar').style.width = '100%';
+        $('agentRound').textContent = ev.rounds; $('agentCalls').textContent = ev.llm_calls; $('agentCost').textContent = money(ev.cost_usd);
+        setState('agentState', ev.score ? `${pct(ev.score.letter_accuracy)} correct` : 'done', 'done');
+        log(logEl, `done in ${ev.elapsed_s}s · ${ev.tokens.toLocaleString()} tokens`, 'c'); scoreboard(p);
+      }
+    }
+  }
+}
+async function runDiffusion(p) {
+  const el = $('diffGrid'), logEl = $('diffLog'); logEl.innerHTML = ''; renderGrid(el, p.grid);
+  setState('diffState', 'denoising', 'run'); const t0 = startTimer('diff', $('diffTime'));
+  $('diffFill').textContent = '0%'; $('diffStep').textContent = '0/12'; $('diffGpu').textContent = '–'; $('diffBar').style.width = '0';
+  const r = await fetch('/api/solve/diffusion', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...p, steps: 12 }) });
+  const ev = await r.json(); stopTimer('diff');
+  if (ev.error) { setState('diffState', 'server offline', 'err'); log(logEl, 'ERROR ' + ev.error, 'r'); $('diffTime').textContent = '–'; return; }
+  $('diffGpu').textContent = ev.elapsed_s + 's';
+  if ($('live').checked && ev.snapshots?.length) {
+    let prev = p.grid; const tA = Date.now();
+    for (let i = 0; i < ev.snapshots.length; i++) {
+      renderGrid(el, ev.snapshots[i], { prev }); prev = ev.snapshots[i];
+      const h = ev.history[i] || {}; const f = fillPct(ev.snapshots[i]);
+      $('diffStep').textContent = `${i + 1}/${ev.snapshots.length}`; $('diffFill').textContent = pct(f); $('diffBar').style.width = pct(f); $('diffTime').textContent = ((Date.now() - tA) / 1000).toFixed(1) + 's';
+      log(logEl, `step ${i + 1}: revealed ${h.revealed ?? '?'} squares · min confidence ${h.min_conf ?? '?'}`, 'v');
+      await new Promise(res => setTimeout(res, 340));
+    }
+  }
+  diffFinal = ev; renderGrid(el, ev.grid, { solution: p.solution });
+  $('diffTime').textContent = ev.elapsed_s + 's'; $('diffFill').textContent = pct(fillPct(ev.grid)); $('diffBar').style.width = '100%'; $('diffStep').textContent = `${ev.history.length}/${ev.history.length}`;
+  setState('diffState', ev.score ? `${pct(ev.score.letter_accuracy)} correct` : 'done', 'done');
+  log(logEl, `done in ${ev.elapsed_s}s on the GPU · no API calls`, 'c'); scoreboard(p);
+}
+
+/* ---------- step 4: scoreboard ---------- */
+function scoreboard(p) {
+  if (!agentFinal || !diffFinal) return;
+  const a = agentFinal.grid, d = diffFinal.grid; let agree = 0, total = 0;
+  for (let r = 0; r < a.length; r++) for (let c = 0; c < a[r].length; c++) { if (a[r][c] === '#') continue; total++; if (a[r][c] === d[r][c]) agree++; }
+  renderGrid($('agentGrid'), a, { solution: p.solution, other: d }); renderGrid($('diffGrid'), d, { solution: p.solution, other: a });
+  const rows = [['LLM agent', 'var(--agent)', agentFinal], ['CrossDiffusion', 'var(--diff)', diffFinal]];
+  $('score').innerHTML = rows.map(([name, tone, f]) => {
+    const v = f.score ? f.score.letter_accuracy : fillPct(f.grid), label = f.score ? `${f.score.letters_correct}/${f.score.letters_total} · ${pct(v)} correct` : `${pct(v)} filled`;
+    return `<div class="score-row"><div class="who"><i style="background:${tone}"></i>${name}</div><div class="track"><i style="width:${pct(v)}"></i></div><div class="num mono">${label}</div></div>`;
+  }).join('');
+  $('summary').innerHTML = `The solvers agree on <b>${agree}/${total}</b> squares; outlined squares differ${p.solution ? '.' : ', and bars show fill rather than accuracy because no solution is available.'}`;
+  const { slots } = numbering(p.grid);
+  const diffs = slots.map(s => ({ s, wa: wordIn(a, s), wd: wordIn(d, s), t: p.solution ? wordIn(p.solution.map(r => r.toUpperCase()), s) : null }))
+    .filter(x => x.wa !== x.wd || (x.t && (x.wa !== x.t || x.wd !== x.t)));
+  const clueOf = s => (p.clues?.[s.dir] || {})[String(s.n)] || '';
+  const cls = (w, t) => t ? (w === t ? 'ans ok' : 'ans bad') : 'ans';
+  $('clueTableWrap').innerHTML = diffs.length ? `<table><thead><tr><th>clue</th><th></th><th>agent</th><th>CrossDiffusion</th>${p.solution ? '<th>answer</th>' : ''}</tr></thead><tbody>` +
+    diffs.slice(0, 40).map(x => `<tr><td class="mono">${x.s.id}</td><td>${clueOf(x.s)}</td><td class="${cls(x.wa, x.t)}">${x.wa || '—'}</td><td class="${cls(x.wd, x.t)}">${x.wd || '—'}</td>${p.solution ? `<td class="ans">${x.t}</td>` : ''}</tr>`).join('') +
+    `</tbody></table>` + (diffs.length > 40 ? `<div class="summary">…and ${diffs.length - 40} more</div>` : '') :
+    '';
+  $('s4').classList.remove('hidden'); setStep(4);
+}
+
+$('solve').onclick = async () => {
+  agentFinal = diffFinal = null; $('s4').classList.add('hidden'); $('s3').classList.remove('hidden'); setStep(3);
+  const p = puzzleOut(); $('solve').disabled = true; $('s3').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  await Promise.all([runAgent(p), runDiffusion(p)]);
+  $('solve').disabled = false;
+};
+loadConfig(); loadDemos();
+</script>
+</body>
+</html>
